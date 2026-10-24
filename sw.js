@@ -1,5 +1,5 @@
 // Offline cache: serve cached files instantly, refresh them in the background.
-const CACHE = 'onet-v2';
+const CACHE = 'onet-v3';
 const ASSETS = ['./', 'index.html', 'style.css', 'js/tiles.js', 'js/board.js', 'js/levels.js', 'js/audio.js', 'js/ads.js', 'js/game.js', 'fonts/fredoka-latin.woff2', 'icon.svg', 'icon-180.png', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

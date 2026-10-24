@@ -13,6 +13,16 @@
     down: 'Gambar turun ke bawah', up: 'Gambar naik ke atas', left: 'Gambar bergeser ke kiri', right: 'Gambar bergeser ke kanan',
     split: 'Gambar menjauh dari tengah', center: 'Gambar merapat ke tengah',
   };
+  const GRAVITY_SHORT = { down: 'Turun', up: 'Naik', left: 'Ke kiri', right: 'Ke kanan', split: 'Menjauh', center: 'Merapat' };
+  // arrow showing which way tiles slide after a match
+  function gravIcon(mode) {
+    const p = {
+      up: 'M12 19.5V5M6 10.5l6-6 6 6', down: 'M12 4.5V19M6 13.5l6 6 6-6',
+      left: 'M19.5 12H5M10.5 6l-6 6 6 6', right: 'M4.5 12H19M13.5 6l6 6-6 6',
+      split: 'M12 10V3.5M8 7l4-4 4 4M12 14v6.5M8 17l4 4 4-4', center: 'M2.5 12H9M5.5 8l4 4-4 4M21.5 12H15M18.5 8l-4 4 4 4',
+    }[mode];
+    return `<svg class="ic" viewBox="0 0 24 24"><path d="${p}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
   // a face per difficulty for its badge on the home screen
   const DIFF_FACE = ['bunga', 'ikan', 'kucing', 'roket', 'mahkota'];
   const faceIndex = (id) => FACES.findIndex((f) => f.id === id);
@@ -32,7 +42,7 @@
     diff: null, stage: 0, score: 0, stageScore: 0, board: null,
     timeLeft: 0, timeTotal: 0, hints: 0, shuffles: 0,
     sel: null, combo: 0, lastMatchAt: 0, revived: false,
-    running: false, paused: false, busy: false, turned: false,
+    running: false, paused: false, busy: false, turned: false, intro: false,
     els: new Map(), geo: null, hintIds: null,
   };
 
@@ -58,13 +68,19 @@
   function renderHome() {
     $('diff-list').innerHTML = DIFFS.map((d, i) => {
       const b = bestOf(d);
-      const stars = Array.from({ length: STAGES }, (_, k) => `<span class="${k < b.cleared ? 'on' : ''}">${ic('star')}</span>`).join('');
       const bars = Array.from({ length: 5 }, (_, k) => `<i class="${k <= i ? 'on' : ''}"></i>`).join('');
+      const slides = d.gravity.some((g) => g !== 'none');
+      const played = b.score > 0 || b.cleared > 0;
+      const segs = Array.from({ length: STAGES }, (_, k) => `<i class="${k < b.cleared ? 'on' : ''}"></i>`).join('');
+      const right = !played
+        ? `<span class="fresh">Belum<br>dimainkan</span>`
+        : `<span class="best">Terbaik<b>${b.score.toLocaleString('id-ID')}</b></span>
+           <span class="stage-prog" aria-label="${b.cleared} dari ${STAGES} babak tamat"><span class="segs">${segs}</span>${b.cleared >= STAGES ? `${ic('check')}Tamat` : `${b.cleared}/${STAGES}`}</span>`;
       return `<button class="diff" data-i="${i}" style="--c:${d.color}">
         <span class="badge">${faceSVG(faceIndex(DIFF_FACE[i]))}</span>
         <span><div class="name">${d.name}</div>
-          <div class="meta"><span class="bars">${bars}</span>${d.rows * d.cols} gambar${b.cleared >= STAGES ? ` <span class="done-tag">${ic('check')}Tamat</span>` : ''}</div></span>
-        <span class="right"><span class="best">Terbaik<b>${b.score.toLocaleString('id-ID')}</b></span><span class="mini-stars">${stars}</span></span>
+          <div class="meta"><span class="bars" aria-hidden="true">${bars}</span><span>${d.cols}×${d.rows} · ${fmt(d.time)}</span>${slides ? `<span class="slide-tag">${gravIcon('down')}geser</span>` : ''}</div></span>
+        <span class="right">${right}</span>
       </button>`;
     }).join('');
   }
@@ -73,8 +89,26 @@
     if (!b) return;
     Sfx.unlock();
     Sfx.click();
-    startGame(+b.dataset.i);
+    const i = +b.dataset.i, cleared = bestOf(DIFFS[i]).cleared;
+    if (cleared > 0 && cleared < STAGES) offerContinue(i, cleared);
+    else startGame(i, 0);
   });
+
+  // pick up at the first stage not yet cleared, or start over
+  let contDiff = 0, contStage = 0;
+  function offerContinue(i, cleared) {
+    const d = DIFFS[i];
+    contDiff = i;
+    contStage = cleared;
+    $('cont-ic').innerHTML = faceSVG(faceIndex(DIFF_FACE[i]));
+    $('cont-ic').style.background = d.color;
+    $('cont-title').textContent = d.name;
+    $('cont-sub').textContent = `Kamu sudah menamatkan ${cleared} dari ${STAGES} babak. Skor dihitung dari babak yang kamu mulai.`;
+    $('cont-cta').textContent = `Lanjut babak ${cleared + 1}`;
+    openModal('modal-continue');
+  }
+  $('btn-cont').addEventListener('click', () => { Sfx.click(); closeModals(); startGame(contDiff, contStage); });
+  $('btn-cont-new').addEventListener('click', () => { Sfx.click(); closeModals(); startGame(contDiff, 0); });
 
   function renderLogo() {
     // two pairs; the outer pair is joined by a 2-turn line, like a real move
@@ -128,9 +162,9 @@
   $('btn-help').addEventListener('click', () => { Sfx.unlock(); Sfx.click(); openModal('modal-help'); });
 
   // ---------- Game flow ----------
-  function startGame(i) {
+  function startGame(i, stage = 0) {
     G.diff = DIFFS[i];
-    G.stage = 0;
+    G.stage = stage;
     G.score = 0;
     profile.games++;
     save();
@@ -138,7 +172,7 @@
     $('hud-diff').textContent = G.diff.name;
     $('hud-diff').style.setProperty('--chip', G.diff.color);
     applyAudio();
-    ON.track('game_start', { diff: G.diff.id });
+    ON.track('game_start', { diff: G.diff.id, stage: G.stage + 1 });
     startStage();
     if (!profile.seenHelp) {
       profile.seenHelp = true;
@@ -177,14 +211,42 @@
     G.board = new Board(rows, cols, faces);
     buildTiles(true);
     $('hud-stage').textContent = `Babak ${G.stage + 1}/${STAGES}`;
+    const grav = $('hud-grav');
+    grav.hidden = G.gravity === 'none';
+    grav.innerHTML = G.gravity === 'none' ? '' : `${gravIcon(G.gravity)}${GRAVITY_SHORT[G.gravity]}`;
+    grav.title = GRAVITY_TEXT[G.gravity] || '';
     updateHud();
     G.running = true;
-    G.paused = false;
+    G.paused = true; // the clock waits for the intro banner
     document.body.classList.remove('paused');
     startTimer();
-    const gtxt = GRAVITY_TEXT[d.gravity[G.stage]];
-    toast(gtxt ? `Babak ${G.stage + 1}: ${gtxt}` : `Babak ${G.stage + 1}`, 2200);
+    showIntro();
   }
+
+  // Stage intro: stage number and, for sliding stages, which way tiles move.
+  // The timer starts only when it goes away, so no seconds are lost reading it.
+  let introT = 0;
+  function showIntro() {
+    const g = G.gravity;
+    $('banner-kicker').textContent = `${G.diff.name} · Babak ${G.stage + 1} dari ${STAGES}`;
+    $('banner-title').textContent = G.stage === STAGES - 1 ? 'Babak terakhir!' : g === 'none' ? 'Sambungkan semuanya!' : 'Awas, gambar bergeser';
+    $('banner-rule').innerHTML = g === 'none'
+      ? `${ic('clock', '#9ef0d8')}<span>${fmt(G.timeTotal)} untuk ${G.board.count()} gambar</span>`
+      : `<span class="arrow">${gravIcon(g)}</span><span>${GRAVITY_TEXT[g]} setiap kali sepasang hilang</span>`;
+    $('banner').classList.add('show');
+    G.intro = true;
+    clearTimeout(introT);
+    introT = setTimeout(endIntro, g === 'none' ? 1600 : 2600);
+  }
+  function endIntro() {
+    if (!G.intro) return;
+    G.intro = false;
+    clearTimeout(introT);
+    $('banner').classList.remove('show');
+    // stay paused if a menu (pause, first-time help) is open on top
+    if (G.running && !document.querySelector('.overlay.show')) { G.paused = false; lastT = performance.now(); }
+  }
+  $('banner').addEventListener('pointerdown', (e) => { e.preventDefault(); endIntro(); });
 
   // ---------- Layout ----------
   function layout() {
@@ -252,6 +314,7 @@
     tap(+el.dataset.id);
   });
 
+  let blockedTips = 0;
   function posOf(id) {
     for (const { r, c, tile } of G.board.tiles()) if (tile.id === id) return [r, c];
     return null;
@@ -274,6 +337,7 @@
       Sfx.wrong();
       buzz(30);
       G.combo = 0;
+      if (blockedTips < 3) { blockedTips++; toast('Jalurnya terhalang. Garis maksimal 2 belokan dan tidak menembus gambar.', 2600); }
     }
     select(id);
   }
@@ -429,7 +493,7 @@
     $('timefill').style.transform = `scaleX(${f})`;
     const low = G.timeLeft <= 15;
     $('timebar').classList.toggle('low', low);
-    document.querySelector('.timer-pill').classList.toggle('low', low);
+    $('hud-time').classList.toggle('low', low);
     $('hud-time').textContent = fmt(G.timeLeft);
   }
 
@@ -443,6 +507,7 @@
       setTimeout(() => sc.classList.remove('bump'), 120);
     }
     sc.textContent = G.score.toLocaleString('id-ID');
+    $('hud-pairs').textContent = G.board ? G.board.count() / 2 : 0;
     setCount($('hint-count'), G.hints);
     setCount($('shuffle-count'), G.shuffles);
   }
@@ -456,6 +521,7 @@
   function pause(withMenu = true) {
     if (!G.running) return;
     G.paused = true;
+    if (G.intro) { G.intro = false; clearTimeout(introT); $('banner').classList.remove('show'); }
     if (withMenu) {
       document.body.classList.add('paused');
       $('pause-info').textContent = `${G.diff.name} · Babak ${G.stage + 1}/${STAGES} · sisa ${fmt(G.timeLeft)}`;
@@ -509,6 +575,7 @@
     [...starEl.children].forEach((s, i) => {
       if (i < stars) setTimeout(() => { s.classList.add('on'); Sfx.star(i); }, 900 + i * 260);
     });
+    if (stars === 3) setTimeout(() => confetti(40), 1700);
     const next = G.diff.gravity[G.stage + 1];
     $('btn-next').innerHTML = `${ic('play')}Babak ${G.stage + 2}${next !== 'none' ? ' · ' + GRAVITY_TEXT[next].replace('Gambar ', '') : ''}`;
   }
@@ -526,7 +593,10 @@
     clearHint();
     Sfx.over();
     buzz([40, 60, 40]);
-    $('timeup-info').textContent = `Masih ada ${G.board.count()} gambar di papan.`;
+    const total = G.board.rows * G.board.cols, done = total - G.board.count();
+    const cheer = done / total >= 0.6 ? 'Sedikit lagi!' : done / total >= 0.3 ? 'Sudah lumayan jauh!' : 'Ayo, kamu pasti bisa!';
+    $('timeup-info').textContent = `Sudah ${done} dari ${total} gambar dipasangkan. ${cheer}`;
+    $('timeup-prog').style.transform = `scaleX(${done / total})`;
     $('btn-revive').style.display = G.revived ? 'none' : '';
     openModal('modal-timeup');
   }
@@ -565,8 +635,9 @@
     bestEl.textContent = isBest && G.score > 0 ? 'Rekor baru!' : `Rekor: ${b.score.toLocaleString('id-ID')}`;
     if (won) Sfx.clear();
     openModal('modal-over');
+    if (won || (isBest && G.score > 0)) setTimeout(() => confetti(won ? 90 : 50), 300);
   }
-  $('btn-again').addEventListener('click', () => { Sfx.click(); startGame(DIFFS.indexOf(G.diff)); });
+  $('btn-again').addEventListener('click', () => { Sfx.click(); startGame(DIFFS.indexOf(G.diff), 0); });
   $('btn-over-home').addEventListener('click', () => { Sfx.click(); showHome(); });
   $('btn-share').addEventListener('click', async () => {
     const text = `Aku dapat skor ${G.score.toLocaleString('id-ID')} di Onet (${G.diff.name})! Coba kalahkan:`;
@@ -621,6 +692,24 @@
     clearTimeout(comboT);
     comboT = setTimeout(() => el.classList.remove('show'), 1100);
   }
+  // CSS-only confetti; skipped for people who asked for less motion
+  const CONFETTI = ['#ffd23f', '#ff7a59', '#9ef0d8', '#f9a8d4', '#60a5fa', '#a3e635'];
+  function confetti(n) {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const box = document.createElement('div');
+    box.className = 'confetti';
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement('i');
+      const w = 6 + Math.random() * 6;
+      c.style.cssText = `left:${Math.random() * 100}%;width:${w}px;height:${w * (Math.random() < 0.5 ? 0.45 : 1)}px;` +
+        `background:${CONFETTI[i % CONFETTI.length]};border-radius:${Math.random() < 0.3 ? '50%' : '2px'};` +
+        `animation-delay:${Math.random() * 0.4}s;animation-duration:${1.8 + Math.random() * 1.4}s;--sway:${(Math.random() - 0.5) * 160}px;--spin:${Math.random() * 900 - 450}deg`;
+      box.appendChild(c);
+    }
+    document.body.appendChild(box);
+    setTimeout(() => box.remove(), 3800);
+  }
+
   let toastT = 0;
   function toast(msg, ms = 1800) {
     const el = $('toast');
@@ -640,7 +729,8 @@
   // test hook (used by scripts/smoke.js)
   window.__onet = {
     G, DIFFS,
-    start: (i) => startGame(i),
+    start: (i, stage = 0) => startGame(i, stage),
+    skipIntro: () => endIntro(),
     // play the next available pair through the real tap handler
     playOne() {
       const m = G.board.findMove();

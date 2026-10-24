@@ -16,7 +16,7 @@ Tiap tingkat punya 5 babak. Mulai babak tertentu gambar bergeser setelah dipasan
 | Sulit | 8 × 12 (96) | 24 | 5:30 | 2 / 2 | semua babak |
 | Sangat Sulit | 9 × 14 (126) | 32 | 6:30 | 1 / 1 | semua babak |
 
-Di layar lebar (desktop) papan otomatis diputar mendatar. Kalau tidak ada pasangan yang bisa disambung, papan diacak gratis.
+Tiap babak dibuka dengan banner aturan (timer baru berjalan setelahnya), dan arah geser selalu tampil di HUD. Tingkat yang sudah ada progresnya bisa dilanjutkan dari babak terakhir. Di layar lebar (desktop) papan otomatis diputar mendatar. Kalau tidak ada pasangan yang bisa disambung, papan diacak gratis.
 
 ## Skor
 
@@ -26,7 +26,8 @@ Di layar lebar (desktop) papan otomatis diputar mendatar. Kalau tidak ada pasang
 ## Teknis
 
 - HTML/CSS/JS biasa, tanpa build dan tanpa library. Semua gambar adalah SVG buatan sendiri (`js/tiles.js`), ikon UI di sprite `index.html`.
-- `js/board.js`: logika papan murni (jalur 2 belokan, petunjuk, acak, pergeseran). Dites dengan `node scripts/test-board.js` (dibandingkan dengan BFS brute force).
+- `js/board.js`: logika papan murni (jalur 2 belokan, petunjuk, acak, pergeseran). Dites dengan `node scripts/test-board.js` (dibandingkan dengan BFS brute force) dan `node scripts/test-solvable.js` (ribuan permainan acak per babak, memastikan papan tidak pernah macet).
+- `js/levels.js`: tabel tingkat kesulitan. Audit UI/UX ada di `docs/UX_AUDIT.md`.
 - `js/audio.js`: efek suara & musik disintesis Web Audio.
 - `js/ads.js`: semua iklan lewat `ON.Ads`. Placement berhadiah: `hint_refill`, `shuffle_refill`, `time_revive`; interstitial `stage_end` (dibatasi). Versi web memakai iklan contoh untuk hadiah dan tidak menampilkan interstitial. Untuk APK nanti cukup sediakan `ON.nativeAdProvider` (AdMob via Capacitor).
 - PWA: bisa di-install dan dimainkan offline (`sw.js`).

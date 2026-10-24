@@ -28,6 +28,7 @@ const [url, out = '.'] = process.argv.slice(2);
     await p.screenshot({ path: `${out}/m-home.png` });
     for (const i of [0, 2, 4]) {
       await p.evaluate((i) => window.__onet.start(i), i);
+      await p.waitForTimeout(500); await p.screenshot({ path: `${out}/m-intro-${i}.png` }); await p.evaluate(() => window.__onet.skipIntro());
       await p.waitForTimeout(1300);
       await p.screenshot({ path: `${out}/m-play-${i}.png` });
       const geo = await p.evaluate(() => { const r = document.getElementById('board').getBoundingClientRect(); return [r.left, r.right, r.top, r.bottom, innerWidth, innerHeight]; });
@@ -43,7 +44,7 @@ const [url, out = '.'] = process.argv.slice(2);
       await p.waitForTimeout(1800);
       await p.screenshot({ path: `${out}/m-clear-${i}.png` });
       if (!(await p.isVisible('#modal-clear.show'))) errors.push(`stage clear modal missing on diff ${i}`);
-      await p.click('#btn-next');
+      await p.click('#btn-next'); await p.waitForTimeout(600); await p.evaluate(() => window.__onet.skipIntro());
       await p.waitForTimeout(1300);
       await p.screenshot({ path: `${out}/m-stage2-${i}.png` });
       await clearStage(p); // stage 2 (gravity on medium/hard)
@@ -53,7 +54,7 @@ const [url, out = '.'] = process.argv.slice(2);
       await p.waitForTimeout(300);
     }
     // time up + revive + refill
-    await p.evaluate(() => window.__onet.start(1));
+    await p.evaluate(() => { window.__onet.start(1); window.__onet.skipIntro(); });
     await p.waitForTimeout(800);
     await p.evaluate(() => window.__onet.setTime(0.3));
     await p.waitForTimeout(700);
@@ -76,7 +77,7 @@ const [url, out = '.'] = process.argv.slice(2);
   });
   await run('desktop', { width: 1366, height: 768 }, async (p) => {
     await p.screenshot({ path: `${out}/d-home.png` });
-    await p.evaluate(() => window.__onet.start(4));
+    await p.evaluate(() => { window.__onet.start(4); window.__onet.skipIntro(); });
     await p.waitForTimeout(1300);
     await p.screenshot({ path: `${out}/d-play-4.png` });
     await clearStage(p);
@@ -85,7 +86,7 @@ const [url, out = '.'] = process.argv.slice(2);
   });
   await run('small', { width: 360, height: 640 }, async (p) => {
     await p.screenshot({ path: `${out}/s-home.png` });
-    await p.evaluate(() => window.__onet.start(4));
+    await p.evaluate(() => { window.__onet.start(4); window.__onet.skipIntro(); });
     await p.waitForTimeout(1300);
     await p.screenshot({ path: `${out}/s-play-4.png` });
   });
