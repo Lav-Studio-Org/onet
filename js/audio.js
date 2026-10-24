@@ -11,7 +11,13 @@
     musicOn: true,
     ducked: false,
 
+    // Create the context on the first gesture, and bring it back whenever the browser has
+    // paused it. Mobile browsers suspend audio when the screen locks, the app goes to the
+    // background, a call or notification comes in, or (iOS) another audio session starts;
+    // iOS reports that as "interrupted", not "suspended". Without this the game goes silent
+    // after the first round and only a reload brings the sound back.
     unlock() {
+      if (this.ac && this.ac.state === 'closed') this.ac = null;
       if (!this.ac) {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return;
@@ -24,7 +30,17 @@
         this.musicGain.connect(comp);
         this.apply();
       }
-      if (this.ac.state === 'suspended') this.ac.resume();
+      if (this.ac.state !== 'running') {
+        const p = this.ac.resume();
+        if (p && p.catch) p.catch(() => {});
+        // a silent one-sample buffer inside the gesture re-opens the iOS audio session
+        try {
+          const src = this.ac.createBufferSource();
+          src.buffer = this.ac.createBuffer(1, 1, 22050);
+          src.connect(this.ac.destination);
+          src.start(0);
+        } catch { /* ignore */ }
+      }
     },
     configure({ sound, music }) {
       this.soundOn = sound;
@@ -124,6 +140,9 @@
       const eighth = 60 / this.bpm / 2;
       const roots = [110.0, 174.61, 130.81, 196.0]; // A F C G
       const scale = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
+      // resync the clock: after a pause skip the missed notes instead of bursting them,
+      // and after the context was rebuilt (its clock restarts at 0) don't wait for the old time
+      if (this.nextT < ac.currentTime - 0.2 || this.nextT > ac.currentTime + 1) this.nextT = ac.currentTime + 0.05;
       while (this.nextT < ac.currentTime + 0.3) {
         const bar = Math.floor(this.step / 8) % 4;
         const delay = Math.max(0, this.nextT - ac.currentTime);
@@ -139,6 +158,17 @@
       }
     },
   };
+
+  // Any gesture may revive a paused context. iOS only accepts touchend/click as a gesture
+  // (not pointerdown), so listen to all of them; when audio is running this does nothing.
+  const revive = () => { if (Sfx.ac && Sfx.ac.state !== 'running') Sfx.unlock(); };
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) {
+    window.addEventListener(ev, revive, { capture: true, passive: true });
+  }
+  const wake = () => { if (!document.hidden && Sfx.ac && Sfx.ac.state !== 'running') Sfx.ac.resume().catch(() => {}); };
+  document.addEventListener('visibilitychange', wake);
+  window.addEventListener('pageshow', wake);
+  window.addEventListener('focus', wake);
 
   ON.Sfx = Sfx;
   ON.Music = Music;

@@ -67,6 +67,8 @@
       ok = kind === 'rewarded' ? await provider().showRewarded(placement) : await provider().showInterstitial(placement);
     } catch { ok = false; }
     ON.Sfx && ON.Sfx.duck(false);
+    // a full-screen ad (real SDKs especially) can leave the audio context paused
+    if (ON.Sfx && ON.Sfx.ac && ON.Sfx.ac.state !== 'running') ON.Sfx.ac.resume().catch(() => {});
     state.lastAdAt = Date.now();
     ON.track && ON.track(ok ? 'ad_complete' : 'ad_failed', { kind, placement });
     return ok;

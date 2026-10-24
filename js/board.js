@@ -143,6 +143,20 @@
         cells.forEach((cell, i) => (this.grid[cell.r][cell.c] = objs[i]));
         if (this.findMove()) return;
       }
+      this.forcePair();
+    }
+
+    // Fallback that always works: the first two tiles in reading order can always be
+    // joined (same row: nothing between them; otherwise both go up to the empty top
+    // border), so put a matching pair there. Every face is dealt in pairs, so one exists.
+    forcePair() {
+      const cells = this.tiles();
+      if (cells.length < 2) return null;
+      const [p, q] = cells;
+      const type = this.grid[p.r][p.c].type;
+      const mate = cells.find((t, i) => i > 0 && this.grid[t.r][t.c].type === type);
+      [this.grid[q.r][q.c], this.grid[mate.r][mate.c]] = [this.grid[mate.r][mate.c], this.grid[q.r][q.c]];
+      return [[p.r, p.c], [q.r, q.c]];
     }
 
     // Slide tiles after a removal. Modes: none, down, up, left, right,

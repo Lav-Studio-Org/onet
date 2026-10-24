@@ -14,3 +14,4 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/test-board.js
+      - run: node scripts/test-solvable.js 200
