@@ -1,0 +1,15 @@
+{
+  "name": "Onet: Sambung Gambar",
+  "short_name": "Onet",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f3d3e",
+  "theme_color": "#0f3d3e",
+  "lang": "id",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
